@@ -12,15 +12,19 @@ async function initDb() {
   console.log("Initializing MySQL database...");
 
   // 1. Connect without database name to ensure the database exists
-  let connection = await mysql.createConnection({
-    host,
-    port,
-    user,
-    password
-  });
+  try {
+    let connection = await mysql.createConnection({
+      host,
+      port,
+      user,
+      password
+    });
 
-  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\``);
-  await connection.end();
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\``);
+    await connection.end();
+  } catch (err) {
+    console.warn("Could not ensure database existence (this is common on cloud-hosted databases):", err.message);
+  }
 
   // 2. Connect to the specific database
   connection = await mysql.createConnection({
