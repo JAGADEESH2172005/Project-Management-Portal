@@ -14,6 +14,7 @@ A simple full-stack task management application built for the o2h Full Stack App
 - Responsive UI
 - Loading and empty states
 - Dark mode toggle
+- Implemented the all tasks
 
 ## Tech Stack
 
