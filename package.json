@@ -1,0 +1,20 @@
+{
+  "name": "project-management-portal",
+  "version": "1.0.0",
+  "description": "Mini project management portal for a full-stack developer assessment.",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "keywords": [
+    "tasks",
+    "full-stack",
+    "assessment"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "mysql2": "^3.22.5"
+  }
+}
