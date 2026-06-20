@@ -67,13 +67,22 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-initDb()
-  .then(() => {
-    server.listen(config.port, () => {
-      console.log(`Project Management Portal running at http://localhost:${config.port}`);
+if (!process.env.VERCEL) {
+  initDb()
+    .then(() => {
+      server.listen(config.port, () => {
+        console.log(`Project Management Portal running at http://localhost:${config.port}`);
+      });
+    })
+    .catch((err) => {
+      console.error("Database initialization failed:", err.message);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error("Database initialization failed:", err.message);
-    process.exit(1);
+} else {
+  // On Vercel, initialize database but do not listen
+  initDb().catch((err) => {
+    console.error("Database initialization failed on Vercel:", err.message);
   });
+}
+
+module.exports = server;

@@ -11,65 +11,71 @@ async function initDb() {
 
   console.log("Initializing MySQL database...");
 
-  // 1. Connect without database name to ensure the database exists
-  let connection = await mysql.createConnection({
-    host,
-    port,
-    user,
-    password
-  });
+  try {
+    // 1. Connect without database name to ensure the database exists
+    let connection = await mysql.createConnection({
+      host,
+      port,
+      user,
+      password
+    });
 
-  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\``);
-  await connection.end();
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\``);
+    await connection.end();
 
-  // 2. Connect to the specific database
-  connection = await mysql.createConnection({
-    host,
-    port,
-    user,
-    password,
-    database
-  });
+    // 2. Connect to the specific database
+    connection = await mysql.createConnection({
+      host,
+      port,
+      user,
+      password,
+      database
+    });
 
-  // 3. Create the tasks table if it does not exist
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`tasks\` (
-      \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-      \`title\` VARCHAR(255) NOT NULL,
-      \`description\` TEXT NOT NULL,
-      \`status\` ENUM('Pending', 'In Progress', 'Completed') DEFAULT 'Pending',
-      \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
+    // 3. Create the tasks table if it does not exist
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS \`tasks\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`title\` VARCHAR(255) NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`status\` ENUM('Pending', 'In Progress', 'Completed') DEFAULT 'Pending',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
 
-  // 4. Migrate initial data from tasks.json if the table is empty
-  const [rows] = await connection.query("SELECT COUNT(*) as count FROM \`tasks\`");
-  if (rows[0].count === 0) {
-    console.log("MySQL tasks table is empty. Migrating existing JSON tasks data...");
-    try {
-      const jsonPath = path.join(__dirname, "../data/tasks.json");
-      const jsonData = await fs.readFile(jsonPath, "utf8");
-      const tasks = JSON.parse(jsonData);
+    // 4. Migrate initial data from tasks.json if the table is empty
+    const [rows] = await connection.query("SELECT COUNT(*) as count FROM \`tasks\`");
+    if (rows[0].count === 0) {
+      console.log("MySQL tasks table is empty. Migrating existing JSON tasks data...");
+      try {
+        const jsonPath = path.join(__dirname, "../data/tasks.json");
+        const jsonData = await fs.readFile(jsonPath, "utf8");
+        const tasks = JSON.parse(jsonData);
 
-      if (Array.isArray(tasks) && tasks.length > 0) {
-        for (const task of tasks) {
-          // Format date or default to current date
-          const createdAt = task.created_at ? new Date(task.created_at) : new Date();
-          
-          await connection.query(
-            "INSERT INTO \`tasks\` (\`id\`, \`title\`, \`description\`, \`status\`, \`created_at\`) VALUES (?, ?, ?, ?, ?)",
-            [task.id, task.title, task.description, task.status || "Pending", createdAt]
-          );
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          for (const task of tasks) {
+            // Format date or default to current date
+            const createdAt = task.created_at ? new Date(task.created_at) : new Date();
+            
+            await connection.query(
+              "INSERT INTO \`tasks\` (\`id\`, \`title\`, \`description\`, \`status\`, \`created_at\`) VALUES (?, ?, ?, ?, ?)",
+              [task.id, task.title, task.description, task.status || "Pending", createdAt]
+            );
+          }
+          console.log(`Successfully migrated ${tasks.length} tasks to MySQL.`);
         }
-        console.log(`Successfully migrated ${tasks.length} tasks to MySQL.`);
+      } catch (err) {
+        console.warn("Could not migrate initial tasks data from JSON:", err.message);
       }
-    } catch (err) {
-      console.warn("Could not migrate initial tasks data from JSON:", err.message);
     }
-  }
 
-  await connection.end();
-  console.log("MySQL database initialization completed successfully.");
+    await connection.end();
+    console.log("MySQL database initialization completed successfully.");
+    global.useMySQL = true;
+  } catch (err) {
+    console.warn("MySQL connection failed. Falling back to JSON database. Error:", err.message);
+    global.useMySQL = false;
+  }
 }
 
 module.exports = initDb;

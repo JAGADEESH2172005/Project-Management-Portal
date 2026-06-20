@@ -1,4 +1,6 @@
 const mysql = require("mysql2/promise");
+const fs = require("fs/promises");
+const path = require("path");
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
@@ -10,6 +12,21 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0
 });
+
+const jsonFilePath = path.join(__dirname, "../data/tasks.json");
+
+async function readJsonTasks() {
+  try {
+    const data = await fs.readFile(jsonFilePath, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeJsonTasks(tasks) {
+  await fs.writeFile(jsonFilePath, JSON.stringify(tasks, null, 2), "utf8");
+}
 
 const allowedStatuses = new Set(["Pending", "In Progress", "Completed"]);
 
@@ -38,6 +55,10 @@ function validateTaskInput(input, partial = false) {
 }
 
 async function getAllTasks() {
+  if (!global.useMySQL) {
+    const tasks = await readJsonTasks();
+    return tasks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
   const [rows] = await pool.query("SELECT * FROM tasks ORDER BY created_at DESC");
   return rows;
 }
@@ -52,6 +73,21 @@ async function createTask(input) {
   const description = String(input.description).trim();
   const status = input.status || "Pending";
 
+  if (!global.useMySQL) {
+    const tasks = await readJsonTasks();
+    const newId = tasks.reduce((max, t) => t.id > max ? t.id : max, 0) + 1;
+    const newTask = {
+      id: newId,
+      title,
+      description,
+      status,
+      created_at: new Date().toISOString()
+    };
+    tasks.push(newTask);
+    await writeJsonTasks(tasks);
+    return { task: newTask };
+  }
+
   const [result] = await pool.query(
     "INSERT INTO tasks (title, description, status) VALUES (?, ?, ?)",
     [title, description, status]
@@ -65,6 +101,28 @@ async function updateTask(id, input) {
   const errors = validateTaskInput(input, true);
   if (Object.keys(errors).length > 0) {
     return { errors };
+  }
+
+  if (!global.useMySQL) {
+    const tasks = await readJsonTasks();
+    const taskIndex = tasks.findIndex((t) => t.id === id);
+    if (taskIndex === -1) {
+      return { notFound: true };
+    }
+
+    const task = tasks[taskIndex];
+    if (input.title !== undefined) {
+      task.title = String(input.title).trim();
+    }
+    if (input.description !== undefined) {
+      task.description = String(input.description).trim();
+    }
+    if (input.status !== undefined) {
+      task.status = input.status;
+    }
+
+    await writeJsonTasks(tasks);
+    return { task };
   }
 
   const updates = [];
@@ -104,6 +162,17 @@ async function updateTask(id, input) {
 }
 
 async function deleteTask(id) {
+  if (!global.useMySQL) {
+    const tasks = await readJsonTasks();
+    const taskIndex = tasks.findIndex((t) => t.id === id);
+    if (taskIndex === -1) {
+      return { notFound: true };
+    }
+    tasks.splice(taskIndex, 1);
+    await writeJsonTasks(tasks);
+    return { deleted: true };
+  }
+
   const [result] = await pool.query("DELETE FROM tasks WHERE id = ?", [id]);
   if (result.affectedRows === 0) {
     return { notFound: true };
